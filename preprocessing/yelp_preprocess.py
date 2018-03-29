@@ -2,6 +2,12 @@ import os
 import json
 import string
 
+"""
+preprocessing of yelp data
+takes the reviews.json and spits out reviews in lower case stripping new lines (and adding periods to sentence endings).
+also writes rating file
+"""
+
 FILEPATH='C:/Users/tihor/Documents/yelp_reviews'
 FILENAME='review.json'
 reviews=[]
