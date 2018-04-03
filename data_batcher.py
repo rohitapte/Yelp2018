@@ -67,6 +67,12 @@ def convert_ids_to_char_vectors(char_ids,embed_matrix_char):
 
 class YelpDataFromFile(object):
     def __init__(self,word2id,char2id,word_embed_matrix,char_embed_matrix,review_path,rating_path,batch_size,review_length,word_length,discard_long=False,test_size=0.1):
+        self.one_hot_rating={}
+        self.one_hot_rating[1]=[0,0,0,0,1]
+        self.one_hot_rating[2]=[0,0,0,1,0]
+        self.one_hot_rating[3]=[0,0,1,0,0]
+        self.one_hot_rating[4]=[0,1,0,0,0]
+        self.one_hot_rating[5]=[1,0,0,0,0]
         vocab_size=5261669
         indices=[i for i in range(vocab_size)]
         self.train_indices,self.test_indices=train_test_split(indices)
@@ -104,43 +110,50 @@ class YelpDataFromFile(object):
         ratings_return=[int(ratings[item]) for item in indices]
         return lines_return,ratings_return
 
+    def convert_data_to_embeddings(self,indices):
+        review_words = []
+        review_chars = []
+        ratings = []
+        lines, rating_lines = self.get_lines_and_ratings_from_file(indices)
+        for line in lines:
+            tokens, word_ids, char_ids = sentence_to_word_and_char_token_ids(line, word2id, char2id)
+            if len(tokens) > self.review_length:
+                if self.discard_long:
+                    continue
+                else:
+                    tokens = tokens[:self.review_length]
+                    word_ids = word_ids[:self.review_length]
+                    char_ids = char_ids[:self.review_length]
+            word_ids = pad_words(word_ids, self.review_length)
+            char_ids = pad_characters(char_ids, self.review_length, self.word_length)
+            word_ids = convert_ids_to_word_vectors(word_ids, emb_matrix_word)
+            char_ids = convert_ids_to_char_vectors(char_ids, emb_matrix_char)
+            review_words.append(word_ids)
+            review_chars.append(char_ids)
+        for line in rating_lines:
+            ratings.append(self.one_hot_rating[line])
+        review_words = np.array(review_words)
+        review_chars = np.array(review_chars)
+        ratings = np.array(ratings)
+        review_mask=(review_words!=PAD_ID).astype(np.int32)
+        return review_words,review_chars,review_mask,ratings
+
     def generate_one_epoch(self,batch_size=1000):
-        one_hot_rating = {}
-        one_hot_rating[1] = [0, 0, 0, 0, 1]
-        one_hot_rating[2] = [0, 0, 0, 1, 0]
-        one_hot_rating[3] = [0, 0, 1, 0, 0]
-        one_hot_rating[4] = [0, 1, 0, 0, 0]
-        one_hot_rating[5] = [1, 0, 0, 0, 0]
         num_batches=int(len(self.train_indices))//batch_size
         if batch_size*num_batches<len(self.train_indices): num_batches += 1
         random.shuffle(self.train_indices)
         for i in range(num_batches):
-            review_words=[]
-            review_chars=[]
-            ratings=[]
             indices=self.train_indices[i*batch_size:(i+1)*batch_size]
-            lines,rating_lines=self.get_lines_and_ratings_from_file(indices)
-            for line in lines:
-                tokens, word_ids, char_ids = sentence_to_word_and_char_token_ids(line, word2id, char2id)
-                if len(tokens) > self.review_length:
-                    if self.discard_long:
-                        continue
-                    else:
-                        tokens=tokens[:self.review_length]
-                        word_ids=word_ids[:self.review_length]
-                        char_ids=char_ids[:self.review_length]
-                word_ids=pad_words(word_ids,self.review_length)
-                char_ids=pad_characters(char_ids,self.review_length,self.word_length)
-                word_ids=convert_ids_to_word_vectors(word_ids, emb_matrix_word)
-                char_ids=convert_ids_to_char_vectors(char_ids, emb_matrix_char)
-                review_words.append(word_ids)
-                review_chars.append(char_ids)
-            for line in rating_lines:
-                ratings.append(one_hot_rating[line])
-            review_words=np.array(review_words)
-            review_chars=np.array(review_chars)
-            ratings=np.array(ratings)
-            yield review_words, review_chars, ratings
+            review_words,review_chars,review_mask,ratings=self.convert_data_to_embeddings(indices)
+            yield review_words,review_chars,review_mask,ratings
+
+    def generate_test_data(self,batch_size=1000):
+        num_batches=int(len(self.test_indices))//batch_size
+        if batch_size*num_batches<len(self.test_indices): num_batches+=1
+        for i in range(num_batches):
+            indices=self.test_indices[i*batch_size:(i+1)*batch_size]
+            review_words, review_chars, review_mask, ratings=self.convert_data_to_embeddings(indices)
+            yield review_words,review_chars,review_mask,ratings
 
 class YelpData(object):
     """
@@ -215,14 +228,17 @@ class YelpData(object):
             ratings=self.ratings_train[i*batch_size:(i+1)*batch_size]
             yield review_words,review_chars,ratings
 
+
 emb_matrix_char, char2id, id2char=word_and_character_vectors.get_char('C:\\Users\\tihor\\Documents\\ml_data_files')
 emb_matrix_word, word2id, id2word=word_and_character_vectors.get_glove('C:\\Users\\tihor\\Documents\\ml_data_files')
 zz=YelpDataFromFile(word2id=word2id,char2id=char2id,word_embed_matrix=emb_matrix_word,char_embed_matrix=emb_matrix_char,review_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\',rating_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\',batch_size=20,review_length=300,word_length=15,discard_long=False,test_size=0.1)
 
-for review_words,review_chars,ratings in zz.generate_one_epoch():
+for review_words,review_chars,review_mask,ratings in zz.generate_one_epoch():
     print("words")
     print(review_words.shape)
     print("chars")
     print(review_chars.shape)
+    print("mask")
+    print(review_mask.shape)
     print("ratings")
     print(ratings.shape)
