@@ -229,16 +229,16 @@ class YelpData(object):
             yield review_words,review_chars,ratings
 
 
-emb_matrix_char, char2id, id2char=word_and_character_vectors.get_char('C:\\Users\\tihor\\Documents\\ml_data_files')
-emb_matrix_word, word2id, id2word=word_and_character_vectors.get_glove('C:\\Users\\tihor\\Documents\\ml_data_files')
-zz=YelpDataFromFile(word2id=word2id,char2id=char2id,word_embed_matrix=emb_matrix_word,char_embed_matrix=emb_matrix_char,review_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\',rating_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\',batch_size=20,review_length=300,word_length=15,discard_long=False,test_size=0.1)
+#emb_matrix_char, char2id, id2char=word_and_character_vectors.get_char('C:\\Users\\tihor\\Documents\\ml_data_files')
+#emb_matrix_word, word2id, id2word=word_and_character_vectors.get_glove('C:\\Users\\tihor\\Documents\\ml_data_files')
+#zz=YelpDataFromFile(word2id=word2id,char2id=char2id,word_embed_matrix=emb_matrix_word,char_embed_matrix=emb_matrix_char,review_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\',rating_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\',batch_size=20,review_length=300,word_length=15,discard_long=False,test_size=0.1)
 
-for review_words,review_chars,review_mask,ratings in zz.generate_one_epoch():
-    print("words")
-    print(review_words.shape)
-    print("chars")
-    print(review_chars.shape)
-    print("mask")
-    print(review_mask.shape)
-    print("ratings")
-    print(ratings.shape)
+#for review_words,review_chars,review_mask,ratings in zz.generate_one_epoch():
+#    print("words")
+#    print(review_words.shape)
+#    print("chars")
+#    print(review_chars.shape)
+#    print("mask")
+#    print(review_mask.shape)
+#    print("ratings")
+#    print(ratings.shape)
