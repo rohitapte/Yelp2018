@@ -28,8 +28,6 @@ def extract_reviews_and_ratings():
     replacement['2675546']="I'm not certain, but I'm fairly positive Firewater is Lava reincarnated, but with a new name. Now, I never made it to Lava but even trying Firewater was a stretch. I don't why, but the exterior just doesn't appeal to me.\n\nOnce inside much of the same story. The decor is um..odd. Kinda contemporary American, with what I can only describe as miss-moshed Italian flair. Food was eh, just okay. Penne was used for the mac n cheese. The ribeye was a low, I mean \"looooooooooow down dirty shame\" low grade cut. I guess, at $16 or $18 whatever it was, I should have known. $16 isn't cheap by any means, but for a ribeye..that's criminal. Can we say USDA grade D?\n\nNow to the good stuff. \n\nThe NY strip:\nNow this is a steak. Far from Del Frisco's, but great cut and what a steak should look like. \n\nThe drinks: As the name implies, they seem to specialize in cocktails..Martinis.\n\n$8 Dirty Martini:\nYea buddy. This price might be the cheapest in town."
     replacement['5010195']="Wegen der absolut tollen Landschaft und der netten Leute muss man dort unbedingt mal gewesen sein. Die Berge, der Morgennebel, im Sommer ist es hell bis Mitternacht usw. \nMake your own Ness: Das Monster sieht man öfter mal nachgebildet, alles sehr witzig und kultig. Warum Nessi ausgerechnet lila sein soll, ist für uns allerdings ein Geheimnis geblieben. In einem Ort stehen solche farbenfrohen Nessis als Familie am Seeufer, östlich von Urquart Castle. In Fort Augustus gibt es eine hübsche Drahtskultur mit Kind. Den Vogel abgeschossen hatte im Juli 2013 die Mannschaft von einem Segelboot, die ein großes lila Aufblastier um Baum und Mast gewickelt hatte. Es wurde viel gegrüßt und gewunken."
     count=0
-    f_out_reviews=open(os.path.join(os.path.normpath(FILEPATH),'reviews.txt'),'w',encoding='utf-8')
-    f_out_ratings=open(os.path.join(os.path.normpath(FILEPATH),'ratings.txt'),'w',encoding='utf-8')
     with open(os.path.join(os.path.normpath(FILEPATH),FILENAME),'r',encoding='utf-8') as f_in:
         for line in f_in:
             value_dict=json.loads(line)
@@ -60,11 +58,25 @@ def extract_reviews_and_ratings():
             ratings.append(str(value_dict['stars']).strip())
             count += 1
 
+    i=0
+    f_out_reviews = open(os.path.join(os.path.normpath(FILEPATH),'reviews'+str(i).zfill(2)+'.txt'),'w',encoding='utf-8')
     for item in reviews:
+        if i%100000==0:
+            temp=i//100000
+            f_out_reviews.close()
+            f_out_reviews=open(os.path.join(os.path.normpath(FILEPATH),'reviews'+str(temp).zfill(2)+'.txt'),'w',encoding='utf-8')
         f_out_reviews.write(item+'\n')
-    for item in ratings:
-        f_out_ratings.write(item+'\n')
+        i+=1
     f_out_reviews.close()
+    i=0
+    f_out_ratings=open(os.path.join(os.path.normpath(FILEPATH),'ratings'+str(i).zfill(2)+'.txt'),'w',encoding='utf-8')
+    for item in ratings:
+        if i%100000==0:
+            temp=i//100000
+            f_out_ratings.close()
+            f_out_ratings = open(os.path.join(os.path.normpath(FILEPATH),'ratings'+str(temp).zfill(2)+'.txt'),'w',encoding='utf-8')
+        f_out_ratings.write(item+'\n')
+        i+=1
     f_out_ratings.close()
 
 
