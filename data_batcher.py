@@ -4,6 +4,8 @@ from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 import numpy as np
 import random
+from collections import defaultdict
+import os
 
 def split_by_whitespace(sentence):
     words=[]
@@ -80,21 +82,27 @@ class YelpDataFromFile(object):
         self.discard_long=discard_long
 
     def get_lines_and_ratings_from_file(self,indices):
-        lines=[]
-        ratings=[]
-        i=0
-        with open(self.review_path,'r',encoding='utf-8') as f:
-            for line in f:
-                if i in indices:
-                    lines.append(line)
-                i+=1
-        i=0
-        with open(self.rating_path,'r',encoding='utf-8') as f:
-            for line in f:
-                if i in indices:
-                    ratings.append(line)
-                i+=1
-        return lines,ratings
+        file_dict=defaultdict(list)
+        for item in indices:
+            file_dict[item//100000].append(item)
+        lines={}
+        ratings={}
+        for file in file_dict:
+            with open(os.path.join(os.path.normpath(self.review_path),'reviews'+str(file).zfill(2)+'.txt'),'r',encoding='utf-8') as f:
+                i=int(file)*100000
+                for line in f:
+                    if i in file_dict[file]:
+                        lines[i]=line
+                    i+=1
+            with open(os.path.join(os.path.normpath(self.review_path),'ratings'+str(file).zfill(2)+'.txt'),'r',encoding='utf-8') as f:
+                i=int(file)*100000
+                for line in f:
+                    if i in indices:
+                        ratings[i]=line
+                    i+=1
+        lines_return=[lines[item] for item in indices]
+        ratings_return=[int(ratings[item]) for item in indices]
+        return lines_return,ratings_return
 
     def generate_one_epoch(self,batch_size=1000):
         one_hot_rating = {}
@@ -128,8 +136,7 @@ class YelpDataFromFile(object):
                 review_words.append(word_ids)
                 review_chars.append(char_ids)
             for line in rating_lines:
-                rating = int(line.strip())
-                ratings.append(one_hot_rating[rating])
+                ratings.append(one_hot_rating[line])
             review_words=np.array(review_words)
             review_chars=np.array(review_chars)
             ratings=np.array(ratings)
@@ -210,7 +217,7 @@ class YelpData(object):
 
 emb_matrix_char, char2id, id2char=word_and_character_vectors.get_char('C:\\Users\\tihor\\Documents\\ml_data_files')
 emb_matrix_word, word2id, id2word=word_and_character_vectors.get_glove('C:\\Users\\tihor\\Documents\\ml_data_files')
-zz=YelpDataFromFile(word2id=word2id,char2id=char2id,word_embed_matrix=emb_matrix_word,char_embed_matrix=emb_matrix_char,review_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\reviews.txt',rating_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\ratings.txt',batch_size=20,review_length=10,word_length=15,discard_long=False,test_size=0.1)
+zz=YelpDataFromFile(word2id=word2id,char2id=char2id,word_embed_matrix=emb_matrix_word,char_embed_matrix=emb_matrix_char,review_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\',rating_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\',batch_size=20,review_length=300,word_length=15,discard_long=False,test_size=0.1)
 
 for review_words,review_chars,ratings in zz.generate_one_epoch():
     print("words")
