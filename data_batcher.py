@@ -1,8 +1,9 @@
 from word_and_character_vectors import PAD_ID,UNK_ID
 import word_and_character_vectors
 from tqdm import tqdm
-import random
+from sklearn.model_selection import train_test_split
 import numpy as np
+import random
 
 def split_by_whitespace(sentence):
     words=[]
@@ -47,6 +48,93 @@ def pad_characters(char_array,pad_size,word_pad_size):
             char_array[i] = item[:word_pad_size]
     return char_array
 
+def convert_ids_to_word_vectors(word_ids,emb_matrix_word):
+    retval=[]
+    for id in word_ids:
+        retval.append(emb_matrix_word[id])
+    return retval
+
+def convert_ids_to_char_vectors(char_ids,embed_matrix_char):
+    retval=[]
+    for word_rows in char_ids:
+        row_val=[]
+        for c in word_rows:
+            row_val.append(emb_matrix_char[c])
+        retval.append(row_val)
+    return retval
+
+class YelpDataFromFile(object):
+    def __init__(self,word2id,char2id,word_embed_matrix,char_embed_matrix,review_path,rating_path,batch_size,review_length,word_length,discard_long=False,test_size=0.1):
+        vocab_size=5261669
+        indices=[i for i in range(vocab_size)]
+        self.train_indices,self.test_indices=train_test_split(indices)
+        self.word2id=word2id
+        self.char2id=char2id
+        self.word_embed_matrix=word_embed_matrix
+        self.char_embed_matrix=char_embed_matrix
+        self.review_path=review_path
+        self.rating_path=rating_path
+        self.batch_size=batch_size
+        self.review_length=review_length
+        self.word_length=word_length
+        self.discard_long=discard_long
+
+    def get_lines_and_ratings_from_file(self,indices):
+        lines=[]
+        ratings=[]
+        i=0
+        with open(self.review_path,'r',encoding='utf-8') as f:
+            for line in f:
+                if i in indices:
+                    lines.append(line)
+                i+=1
+        i=0
+        with open(self.rating_path,'r',encoding='utf-8') as f:
+            for line in f:
+                if i in indices:
+                    ratings.append(line)
+                i+=1
+        return lines,ratings
+
+    def generate_one_epoch(self,batch_size=1000):
+        one_hot_rating = {}
+        one_hot_rating[1] = [0, 0, 0, 0, 1]
+        one_hot_rating[2] = [0, 0, 0, 1, 0]
+        one_hot_rating[3] = [0, 0, 1, 0, 0]
+        one_hot_rating[4] = [0, 1, 0, 0, 0]
+        one_hot_rating[5] = [1, 0, 0, 0, 0]
+        num_batches=int(len(self.train_indices))//batch_size
+        if batch_size*num_batches<len(self.train_indices): num_batches += 1
+        random.shuffle(self.train_indices)
+        for i in range(num_batches):
+            review_words=[]
+            review_chars=[]
+            ratings=[]
+            indices=self.train_indices[i*batch_size:(i+1)*batch_size]
+            lines,rating_lines=self.get_lines_and_ratings_from_file(indices)
+            for line in lines:
+                tokens, word_ids, char_ids = sentence_to_word_and_char_token_ids(line, word2id, char2id)
+                if len(tokens) > self.review_length:
+                    if self.discard_long:
+                        continue
+                    else:
+                        tokens=tokens[:self.review_length]
+                        word_ids=word_ids[:self.review_length]
+                        char_ids=char_ids[:self.review_length]
+                word_ids=pad_words(word_ids,self.review_length)
+                char_ids=pad_characters(char_ids,self.review_length,self.word_length)
+                word_ids=convert_ids_to_word_vectors(word_ids, emb_matrix_word)
+                char_ids=convert_ids_to_char_vectors(char_ids, emb_matrix_char)
+                review_words.append(word_ids)
+                review_chars.append(char_ids)
+            for line in rating_lines:
+                rating = int(line.strip())
+                ratings.append(one_hot_rating[rating])
+            review_words=np.array(review_words)
+            review_chars=np.array(review_chars)
+            ratings=np.array(ratings)
+            yield review_words, review_chars, ratings
+
 class YelpData(object):
     """
         word2id - dict converting words to embedding_matrix id
@@ -58,9 +146,9 @@ class YelpData(object):
         word_length - character length of each word
         discard_long - if true, discard reviews longer than review_length words. else truncate
     """
-    def __init__(self,word2id,char2id,review_path,rating_path,batch_size,review_length,word_length,discard_long=False,test_size=0.1,val_size=0.1):
+    def __init__(self,word2id,char2id,word_embed_matrix,char_embed_matrix,review_path,rating_path,batch_size,review_length,word_length,discard_long=False,test_size=0.1):
         vocab_size=5261669
-        stop_at=50000
+        stop_at=500000
         review_words=[]
         review_chars=[]
         ratings=[]
@@ -83,6 +171,8 @@ class YelpData(object):
                         char_ids=char_ids[:review_length]
                 word_ids=pad_words(word_ids,review_length)
                 char_ids=pad_characters(char_ids,review_length,word_length)
+                zz=convert_ids_to_word_vectors(word_ids,emb_matrix_word)
+                aa=convert_ids_to_char_vectors(char_ids,emb_matrix_char)
                 review_words.append(word_ids)
                 review_chars.append(char_ids)
         i=0
@@ -98,41 +188,34 @@ class YelpData(object):
                 if i > stop_at: break
                 rating=int(line.strip())
                 ratings.append(one_hot_rating[rating])
-        self.review_words = np.array(review_words)
-        self.review_chars = np.array(review_chars)
-        self.ratings = np.array(ratings)
+        indices=np.arange(len(review_words))
+        self.review_words_train,self.review_words_test,self.ratings_train,self.ratings_test,idx_train,idx_test=train_test_split(np.array(review_words),np.array(ratings),indices,test_size=test_size)
+        review_chars=np.array(review_chars)
+        self.review_chars_train=review_chars[idx_train]
+        self.review_chars_test=review_chars[idx_test]
 
-    def generate_one_epoch(self,batch_size=100):
-        print(self.review_words.shape)
-        print(self.review_chars.shape)
-        print(self.ratings.shape)
-        num_batches=int(self.ratings.shape[0])//batch_size
-        if batch_size*num_batches<self.ratings.shape[0]: num_batches+=1
-        perm=np.arange(self.review_words.shape[0])
+    def generate_one_epoch(self,batch_size=1000):
+        num_batches=int(self.ratings_train.shape[0])//batch_size
+        if batch_size*num_batches<self.ratings_train.shape[0]: num_batches+=1
+        perm=np.arange(self.review_words_train.shape[0])
         np.random.shuffle(perm)
-        self.review_words=self.review_words[perm]
-        self.review_chars=self.review_chars[perm]
-        self.ratings=self.ratings[perm]
+        self.review_words_train=self.review_words_train[perm]
+        self.review_chars_train=self.review_chars_train[perm]
+        self.ratings_train=self.ratings_train[perm]
         for i in range(num_batches):
-            review_words=self.review_words[i*batch_size:(i+1)*batch_size]
-            review_chars=self.review_chars[i*batch_size:(i+1)*batch_size]
-            ratings=self.ratings[i*batch_size:(i+1)*batch_size]
+            review_words=self.review_words_train[i*batch_size:(i+1)*batch_size]
+            review_chars=self.review_chars_train[i*batch_size:(i+1)*batch_size]
+            ratings=self.ratings_train[i*batch_size:(i+1)*batch_size]
             yield review_words,review_chars,ratings
 
-
-
-
 emb_matrix_char, char2id, id2char=word_and_character_vectors.get_char('C:\\Users\\tihor\\Documents\\ml_data_files')
-#emb_matrix_word, word2id, id2word=word_and_character_vectors.get_glove('C:\\Users\\tihor\\Documents\\ml_data_files')
-emb_matrix_word, word2id, id2word=word_and_character_vectors.get_char('C:\\Users\\tihor\\Documents\\ml_data_files')
-zz=YelpData(word2id=word2id,char2id=char2id,review_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\reviews.txt',rating_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\ratings.txt',batch_size=20,review_length=600,word_length=15,discard_long=False,test_size=0.1,val_size=0.1)
+emb_matrix_word, word2id, id2word=word_and_character_vectors.get_glove('C:\\Users\\tihor\\Documents\\ml_data_files')
+zz=YelpDataFromFile(word2id=word2id,char2id=char2id,word_embed_matrix=emb_matrix_word,char_embed_matrix=emb_matrix_char,review_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\reviews.txt',rating_path='C:\\Users\\tihor\\Documents\\yelp_reviews\\ratings.txt',batch_size=20,review_length=10,word_length=15,discard_long=False,test_size=0.1)
 
 for review_words,review_chars,ratings in zz.generate_one_epoch():
     print("words")
     print(review_words.shape)
     print("chars")
     print(review_chars.shape)
-    if review_chars.shape != (100,600,15):
-        x=2
     print("ratings")
     print(ratings.shape)
